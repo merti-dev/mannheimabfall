@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Abfallkalender</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+        }
+        select, input, button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #ffffff;
+            font-size: 16px;
+            text-align: left;
+        }
+        label {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Abfallkalender Online 🗑️</h2>
+
+        <!-- Sokak girişi -->
+        <label for="streetInput">Straße eingeben:</label>
+        <input type="text" id="streetInput" placeholder="Burgstr" oninput="fetchStreets()" />
+
+        <!-- Sokak seçimi -->
+        <label for="streetSelect">Straße auswählen:</label>
+        <select id="streetSelect" onchange="fetchHouseNumbers()" disabled>
+            <option value="">Bitte Straße wählen...</option>
+        </select>
+
+        <!-- Bina seçimi -->
+        <label for="houseNumberSelect">Hausnummer eingeben:</label>
+        <select id="houseNumberSelect" disabled>
+            <option value="">Bitte Hausnummer wählen...</option>
+        </select>
+
+        <!-- Yıl seçimi -->
+        <label for="yearSelect">Jahr:</label>
+        <select id="yearSelect">
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+        </select>
+
+        <!-- Takvim Al Butonu -->
+        <button id="fetchCalendarBtn" disabled>Abfallkalender anzeigen</button>
+        <div id="calendarResults" class="result"></div>
+
+        <!-- Email Gönder (Sadece İlk 7 Gün) -->
+        <label for="emailInput">E-Mail eingeben:</label>
+        <input type="email" id="emailInput" placeholder="beispiel@domain.de" />
+        <button id="sendMailBtn">Email Gönder (Sadece İlk 7 Gün)</button>
+    </div>
+
+    <script>
+        let selectedStreetId = null;
+        let selectedHouseId = null;
+
+        // 1) Sokak Listesini Al
+        async function fetchStreets() {
+            const streetText = document.getElementById('streetInput').value;
+            if (streetText.length < 3) return;
+
+            const url = `http://localhost:3000/proxy/streets?text=${streetText}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                const streetSelect = document.getElementById('streetSelect');
+                streetSelect.innerHTML = `<option value="">Bitte Straße wählen...</option>`;
+
+                data.forEach(street => {
+                    const option = document.createElement('option');
+                    option.value = street.ID;
+                    option.textContent = street.Name;
+                    streetSelect.appendChild(option);
+                });
+
+                streetSelect.disabled = false;
+            } catch (err) {
+                console.error("Straßen-Fehler:", err);
+            }
+        }
+
+        // 2) Bina Numarası Listesini Al
+        async function fetchHouseNumbers() {
+            selectedStreetId = document.getElementById('streetSelect').value;
+            if (!selectedStreetId) return;
+
+            const url = `http://localhost:3000/proxy/housenumbers?streetId=${selectedStreetId}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                const houseNumberSelect = document.getElementById('houseNumberSelect');
+                houseNumberSelect.innerHTML = `<option value="">Bitte Hausnummer wählen...</option>`;
+
+                data.forEach(house => {
+                    const option = document.createElement('option');
+                    // ID (bmsLocationId)
+                    option.value = house.ID;
+                    // Görünecek Metin
+                    option.textContent = house.HouseNumberStart; 
+                    houseNumberSelect.appendChild(option);
+                });
+
+                houseNumberSelect.disabled = false;
+            } catch (err) {
+                console.error("Hausnummer-Fehler:", err);
+            }
+        }
+
+        // Bina seçildiğinde
+        document.getElementById('houseNumberSelect').addEventListener('change', function() {
+            selectedHouseId = this.value; // bmsLocationId
+            document.getElementById('fetchCalendarBtn').disabled = !selectedHouseId;
+        });
+
+        // 3) Takvimi Getir (Tam HTML, tüm ay vs.)
+        document.getElementById('fetchCalendarBtn').addEventListener('click', async function() {
+            if (!selectedHouseId) return;
+
+            const year = document.getElementById('yearSelect').value;
+            const url = 'http://localhost:3000/proxy/post';
+
+            const formData = new URLSearchParams();
+            formData.append('bmsLocationId', selectedHouseId);
+            formData.append('year', year);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData.toString()
+                });
+                let htmlContent = await response.text();
+
+                // 📌 <img> → Emoji Dönüştürme (Regex)
+                htmlContent = htmlContent.replace(
+                  /<img[^>]+src=["'][^"]+\/([^"]+)["'][^>]*>/g,
+                  function(match, filename) {
+                    if (filename === 'abfuhrtonne_blau.png')   return '📖 Papier';
+                    if (filename === 'abfuhrtonne_grau.png')   return '🗑️ Restmüll';
+                    if (filename === 'abfuhrtonne_gelb.png')   return '🔄 Wertstofftonne';
+                    if (filename === 'abfuhrtonne_braun.png')  return '🍂 Biotonne';
+                    if (filename === 'abfuhrtonne_gruenabfall.png') return '🌿 Grünabfälle';
+                    if (filename === 'Christbaum.png')         return '🎄 Christbäume';
+                    return '';
+                  }
+                );
+
+                // Ekranda göster
+                document.getElementById('calendarResults').innerHTML = htmlContent;
+
+            } catch (err) {
+                console.error("Takvim alma hatası:", err);
+            }
+        });
+
+        // 4) E-Mail Gönder (Sadece ilk 7 günlük satır)
+        document.getElementById('sendMailBtn').addEventListener('click', async () => {
+            const email = document.getElementById('emailInput').value.trim();
+            if (!email) {
+                alert("Lütfen geçerli bir e-posta adresi girin!");
+                return;
+            }
+
+            // Ekrandaki tam HTML (1 ay, 2 ay vs.)
+            const fullHtml = document.getElementById('calendarResults').innerHTML;
+            if (!fullHtml) {
+                alert("Henüz takvim bilgisi yok. Önce 'Abfallkalender anzeigen' butonuna basın.");
+                return;
+            }
+
+            // DOMParser ile parse
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(fullHtml, "text/html");
+
+            // Tüm <tr> satırlarını inceleyip, sadece 7 gün içinde olanları bırak.
+            const today = new Date();
+            const nextWeek = new Date();
+            nextWeek.setDate(today.getDate() + 7);
+
+            const rows = doc.querySelectorAll("table.table tbody tr");
+            rows.forEach(row => {
+                const dayElement = row.querySelector(".tableDay b");
+                if (!dayElement) {
+                    row.remove();
+                    return;
+                }
+                // Örnek: <b>17.</b> Mo => dayText = "17."
+                const dayText = dayElement.textContent.replace(".", "").trim();
+                const dayNumber = parseInt(dayText, 10);
+                if (isNaN(dayNumber)) {
+                    row.remove();
+                    return;
+                }
+
+                // Basit yaklaşım: Aynı aydayız varsayımı
+                const currentMonth = today.getMonth(); // 0-11
+                const dateObj = new Date(today.getFullYear(), currentMonth, dayNumber);
+
+                if (dateObj < today || dateObj > nextWeek) {
+                    row.remove();
+                }
+            });
+
+            // Kısaltılmış HTML (Sadece ilk 7 gün)
+            const partialHTML = doc.body.innerHTML;
+
+            // Son olarak partialHTML'i sunucuya POST edip mail atıyoruz
+            const sendMailUrl = 'http://localhost:3000/proxy/sendMail';
+            try {
+                const response = await fetch(sendMailUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email,
+                        htmlContent: partialHTML
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert("Email başarıyla gönderildi (İlk 7 Gün)!");
+                } else {
+                    alert("Email gönderme hatası: " + data.error);
+                }
+            } catch (err) {
+                console.error("Email gönderme hatası:", err);
+                alert("Email gönderilemedi: " + err);
+            }
+        });
+    </script>
+</body>
+</html>
