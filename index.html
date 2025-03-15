@@ -102,7 +102,7 @@
             const streetText = document.getElementById('streetInput').value;
             if (streetText.length < 3) return;
 
-            const url = `http://localhost:3000/proxy/streets?text=${streetText}`;
+            const url = `mannheimabfall-6bwq.vercel.app/proxy/streets?text=${streetText}`;
             try {
                 const response = await fetch(url);
                 const data = await response.json();
@@ -128,7 +128,7 @@
             selectedStreetId = document.getElementById('streetSelect').value;
             if (!selectedStreetId) return;
 
-            const url = `http://localhost:3000/proxy/housenumbers?streetId=${selectedStreetId}`;
+            const url = `mannheimabfall-6bwq.vercel.app/proxy/housenumbers?streetId=${selectedStreetId}`;
             try {
                 const response = await fetch(url);
                 const data = await response.json();
@@ -162,7 +162,7 @@
             if (!selectedHouseId) return;
 
             const year = document.getElementById('yearSelect').value;
-            const url = 'http://localhost:3000/proxy/post';
+            const url = 'mannheimabfall-6bwq.vercel.app/proxy/post';
 
             const formData = new URLSearchParams();
             formData.append('bmsLocationId', selectedHouseId);
@@ -250,7 +250,7 @@
             const partialHTML = doc.body.innerHTML;
 
             // Son olarak partialHTML'i sunucuya POST edip mail atıyoruz
-            const sendMailUrl = 'http://localhost:3000/proxy/sendMail';
+            const sendMailUrl = 'mannheimabfall-6bwq.vercel.app/proxy/sendMail';
             try {
                 const response = await fetch(sendMailUrl, {
                     method: 'POST',
